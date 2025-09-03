@@ -137,7 +137,7 @@ DEFAULT_META = 'models/covid_multitask.onnx.meta.json'
 
 # Streamlit UI Setup
 st.set_page_config(page_title='COVID Multi-task (ONNX)', layout='centered')
-st.title('COVID Multi-task: Classification + Segmentation (ONNX)')
+st.title('COVID Multi-task: Classification + Segmentation')
 st.caption('Upload an image to see predicted class and segmentation overlay (red)')
 
 # Sidebar Configuration
