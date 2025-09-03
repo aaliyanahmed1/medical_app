@@ -41,8 +41,11 @@ def overlay_segmentation(image_bgr: np.ndarray, seg: np.ndarray) -> np.ndarray:
 
 def annotate(overlay_bgr: np.ndarray, text: str) -> np.ndarray:
     out = overlay_bgr.copy()
-    cv2.rectangle(out, (5, 5), (5 + 520, 50), (0, 0, 0), -1)
-    cv2.putText(out, text, (12, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255, 255, 255), 2, cv2.LINE_AA)
+    # smaller rectangle (width & height reduced)
+    cv2.rectangle(out, (5, 5), (5 + 280, 30), (0, 0, 0), -1)
+    # smaller font size & thinner stroke
+    cv2.putText(out, text, (12, 25), cv2.FONT_HERSHEY_SIMPLEX, 
+                0.6, (255, 255, 255), 1, cv2.LINE_AA)
     return out
 
 
