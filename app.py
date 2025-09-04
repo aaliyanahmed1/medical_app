@@ -501,7 +501,6 @@ st.markdown("""
 
 ✅ **System Accepts:**
 - Standard chest X-rays (PA view)
-- Various image qualities
 - Digitized film X-rays
 - Digital X-ray images
 
