@@ -153,7 +153,7 @@ def side_by_side(original_bgr: np.ndarray, annotated_bgr: np.ndarray) -> np.ndar
 
 
 def is_xray_like(image_bgr: Optional[np.ndarray]) -> Tuple[bool, str]:
-    """Validate if image appears to be a chest X-ray.
+    """Validate if image appears to be a chest X-ray with strict criteria.
     
     Args:
         image_bgr: Input BGR image or None
@@ -166,27 +166,86 @@ def is_xray_like(image_bgr: Optional[np.ndarray]) -> Tuple[bool, str]:
     
     # Check image dimensions
     h, w = image_bgr.shape[:2]
-    if min(h, w) < 128:
-        return False, "Image is too small. Minimum dimension should be 128 pixels."
+    if min(h, w) < 256:
+        return False, "Image is too small. Minimum dimension should be 256 pixels for X-ray analysis."
     
-    # Check if image is grayscale-like (low colorfulness)
+    # Convert to grayscale for analysis
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    
+    # 1. Check if image is actually grayscale (not just black and white)
+    # Calculate color channel differences
     b, g, r = cv2.split(image_bgr.astype(np.float32))
     diff_bg = np.mean(np.abs(b - g))
     diff_br = np.mean(np.abs(b - r))
     diff_gr = np.mean(np.abs(g - r))
     avg_diff = (diff_bg + diff_br + diff_gr) / 3.0
     
-    if avg_diff >= 10.0:
-        return False, "Image appears to be colorful. X-ray images should be grayscale."
+    if avg_diff > 5.0:
+        return False, "Image appears to be colorful. X-ray images must be grayscale."
     
-    # Check overall brightness and contrast
-    mean_intensity = np.mean(image_bgr)
-    std_intensity = np.std(image_bgr)
+    # 2. Check for X-ray specific characteristics
+    # X-rays should have specific intensity distribution
+    mean_intensity = np.mean(gray)
+    std_intensity = np.std(gray)
     
-    if mean_intensity < 20 or mean_intensity > 235:
-        return False, "Image is too dark or too bright for an X-ray."
-    if std_intensity < 10:
-        return False, "Image has very low contrast. Unlikely to be an X-ray."
+    # X-rays typically have medium brightness with good contrast
+    if mean_intensity < 30 or mean_intensity > 225:
+        return False, f"Image brightness ({mean_intensity:.1f}) is outside X-ray range (30-225)."
+    
+    if std_intensity < 15:
+        return False, f"Image contrast ({std_intensity:.1f}) is too low for X-ray. X-rays need good contrast."
+    
+    # 3. Check for X-ray anatomical features
+    # X-rays should have some lung-like patterns (not just uniform)
+    # Calculate local variance to detect anatomical structures
+    kernel = np.ones((8, 8), np.float32) / 64
+    local_mean = cv2.filter2D(gray.astype(np.float32), -1, kernel)
+    local_variance = cv2.filter2D((gray.astype(np.float32) - local_mean)**2, -1, kernel)
+    avg_local_variance = np.mean(local_variance)
+    
+    if avg_local_variance < 50:
+        return False, "Image lacks anatomical detail. X-rays should show lung structures and ribs."
+    
+    # 4. Check for X-ray specific intensity patterns
+    # X-rays have characteristic histogram distribution
+    hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+    hist_norm = hist.flatten() / np.sum(hist)
+    
+    # Check if histogram has proper X-ray distribution (not too uniform, not too peaked)
+    entropy = -np.sum(hist_norm * np.log2(hist_norm + 1e-10))
+    if entropy < 4.0:
+        return False, "Image histogram is too uniform. X-rays have characteristic intensity distribution."
+    
+    # 5. Check for rib-like structures (horizontal lines)
+    # Apply edge detection to find potential rib structures
+    edges = cv2.Canny(gray, 50, 150)
+    horizontal_kernel = np.array([[1, 1, 1, 1, 1]], np.uint8)
+    horizontal_lines = cv2.morphologyEx(edges, cv2.MORPH_OPEN, horizontal_kernel)
+    
+    # Count horizontal line pixels
+    horizontal_pixels = np.sum(horizontal_lines > 0)
+    total_pixels = gray.size
+    
+    if horizontal_pixels / total_pixels < 0.001:
+        return False, "No rib-like structures detected. X-rays should show rib outlines."
+    
+    # 6. Check for lung field characteristics
+    # X-rays should have darker lung areas and brighter bone areas
+    # Calculate ratio of dark to bright areas
+    dark_threshold = np.percentile(gray, 30)
+    bright_threshold = np.percentile(gray, 70)
+    
+    dark_pixels = np.sum(gray < dark_threshold)
+    bright_pixels = np.sum(gray > bright_threshold)
+    
+    if dark_pixels / total_pixels < 0.1 or bright_pixels / total_pixels < 0.1:
+        return False, "Image lacks proper X-ray contrast between lung fields and bones."
+    
+    # 7. Final check: Ensure it's not just a simple black and white image
+    # Check for intermediate gray values (X-rays have many gray levels)
+    unique_values = len(np.unique(gray))
+    if unique_values < 100:
+        return False, f"Image has too few gray levels ({unique_values}). X-rays have continuous gray scale."
     
     return True, ""
 
@@ -475,7 +534,7 @@ except Exception as e:
 uploaded = st.file_uploader(
     'Upload a chest X-ray image (PNG/JPG)',
     type=['png', 'jpg', 'jpeg'],
-    help='Maximum file size: 50MB'
+    help='Upload ONLY chest X-ray images showing lung fields and rib structures. Minimum 256x256 pixels. Maximum file size: 50MB'
 )
 
 if uploaded is not None:
@@ -491,7 +550,7 @@ if uploaded is not None:
         
         is_valid, error_msg = is_xray_like(image_bgr)
         if not is_valid:
-            st.error(f'Invalid input: {error_msg}\n\nPlease upload a valid chest X-ray image.')
+            st.error(f'❌ **Invalid Image**: {error_msg}\n\n**Please upload a valid chest X-ray image** that shows:\n- Clear lung fields and rib structures\n- Proper contrast between bones and soft tissue\n- Characteristic X-ray intensity distribution\n- Minimum 256x256 pixels resolution')
             st.stop()
         
         # Run inference
