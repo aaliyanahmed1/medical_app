@@ -328,7 +328,8 @@ Chest X-ray for evaluation of respiratory symptoms and COVID-19 screening
 
 TECHNIQUE:
 Single-view posteroanterior chest radiograph
-AI-powered analysis using MONAI-based deep learning model
+AI-powered analysis using MONAI-based deep learning multi-head model
+
 
 FINDINGS:
 {findings}
@@ -489,6 +490,31 @@ st.set_page_config(
 
 st.title('COVID Multi-task: Classification + Segmentation + Radiology Report (ONNX)')
 st.caption('Upload a chest X-ray to get AI-powered classification, segmentation, and automated radiology report')
+
+# Add clear instructions for users
+st.markdown("""
+### 📋 **Image Requirements:**
+- **Format**: PNG, JPG, or JPEG files
+- **Size**: Minimum 128x128 pixels, maximum 50MB
+- **Content**: Chest X-ray images (any exposure level)
+- **Quality**: Clear, readable medical images
+
+✅ **System Accepts:**
+- Standard chest X-rays (PA view)
+- Light or dark exposures
+- Various image qualities
+- Digitized film X-rays
+- Digital X-ray images
+
+❌ **System Rejects:**
+- Non-medical images
+- Non-chest X-rays
+- Corrupted files
+- Extremely small images
+- low visibility images
+- light exposure images
+- dark exposure images
+""")
 
 # Constants
 DEFAULT_ONNX = 'models/covid_multitask.onnx'
